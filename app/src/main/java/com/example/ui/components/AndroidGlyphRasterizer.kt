@@ -21,6 +21,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -32,225 +33,25 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import com.example.domain.HanziStrokePaths
+import com.example.domain.MakeMeAHanziGlyph
+import com.example.domain.MakeMeAHanziRepository
 import com.example.domain.StrokePoint
 import com.example.domain.VisualShapeMatcher
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.abs
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 object AndroidGlyphRasterizer {
     private val cache = ConcurrentHashMap<String, VisualShapeMatcher.ShapeFeatures>()
-    private val skeletonCache = ConcurrentHashMap<String, List<List<StrokePoint>>>()
 
     fun getFeaturesForCharacter(character: String): VisualShapeMatcher.ShapeFeatures {
         return cache.getOrPut(character) {
             val grid32 = rasterizeGlyphTo32(character)
             VisualShapeMatcher.extractFeatures(grid32)
-        }
-    }
-
-    fun getHandwrittenStrokes(character: String, targetStrokeCount: Int): List<List<StrokePoint>>? {
-        if (HanziStrokePaths.hasManualStrokes(character)) {
-            return HanziStrokePaths.getNormalizedStrokes(character)
-        }
-        skeletonCache[character]?.let { return it }
-        val extracted = extractSkeletonStrokes(character, targetStrokeCount.coerceAtLeast(1))
-        if (extracted != null && extracted.isNotEmpty()) {
-            skeletonCache[character] = extracted
-            return extracted
-        }
-        return HanziStrokePaths.getNormalizedStrokes(character)
-    }
-
-    private fun extractSkeletonStrokes(character: String, targetCount: Int): List<List<StrokePoint>>? {
-        val size = 64
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = AndroidCanvas(bitmap)
-        canvas.drawColor(android.graphics.Color.TRANSPARENT)
-
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.BLACK
-            textSize = 48f
-            typeface = Typeface.SERIF
-        }
-
-        val bounds = Rect()
-        paint.getTextBounds(character, 0, character.length, bounds)
-        if (bounds.width() <= 0 || bounds.height() <= 0) {
-            bitmap.recycle()
-            return null
-        }
-
-        val w = max(1f, bounds.width().toFloat())
-        val h = max(1f, bounds.height().toFloat())
-        val scale = 48f / max(w, h)
-
-        canvas.save()
-        canvas.translate(size * 0.5f, size * 0.5f)
-        canvas.scale(scale, scale)
-        canvas.drawText(character, -bounds.exactCenterX(), -bounds.exactCenterY(), paint)
-        canvas.restore()
-
-        val pixels = IntArray(size * size)
-        bitmap.getPixels(pixels, 0, size, 0, 0, size, size)
-        bitmap.recycle()
-
-        val binary = BooleanArray(size * size)
-        var fgCount = 0
-        for (i in pixels.indices) {
-            if ((pixels[i] ushr 24) >= 96) {
-                binary[i] = true
-                fgCount++
-            }
-        }
-        if (fgCount < 12) return null
-
-        // Zhang-Suen thinning to 1-pixel centerline
-        zhangSuenThin(binary, size)
-
-        // Trace connected chains of skeleton pixels in top-to-bottom, left-to-right order
-        val visited = BooleanArray(size * size)
-        val rawChains = ArrayList<List<StrokePoint>>()
-        val dirs = arrayOf(
-            intArrayOf(1, 0), intArrayOf(1, 1), intArrayOf(0, 1), intArrayOf(-1, 1),
-            intArrayOf(-1, 0), intArrayOf(-1, -1), intArrayOf(0, -1), intArrayOf(1, -1)
-        )
-
-        for (y in 1 until size - 1) {
-            for (x in 1 until size - 1) {
-                val idx = y * size + x
-                if (!binary[idx] || visited[idx]) continue
-
-                val chain = ArrayList<StrokePoint>()
-                var cx = x
-                var cy = y
-                while (true) {
-                    val cIdx = cy * size + cx
-                    visited[cIdx] = true
-                    chain.add(
-                        StrokePoint(
-                            x = 12f + (cx / (size - 1f)) * 76f,
-                            y = 12f + (cy / (size - 1f)) * 76f
-                        )
-                    )
-                    var nextX = -1
-                    var nextY = -1
-                    for (d in dirs) {
-                        val nx = cx + d[0]
-                        val ny = cy + d[1]
-                        if (nx in 1 until size - 1 && ny in 1 until size - 1) {
-                            val nIdx = ny * size + nx
-                            if (binary[nIdx] && !visited[nIdx]) {
-                                nextX = nx
-                                nextY = ny
-                                break
-                            }
-                        }
-                    }
-                    if (nextX == -1) break
-                    cx = nextX
-                    cy = nextY
-                }
-                if (chain.size >= 3) {
-                    val simplified = simplifyChain(chain)
-                    if (simplified.size >= 2) {
-                        rawChains.add(simplified)
-                    }
-                }
-            }
-        }
-
-        if (rawChains.isEmpty()) return null
-
-        // Normalize to match targetCount so stroke order badges stay synchronized
-        val ordered = rawChains.sortedWith(
-            compareBy<List<StrokePoint>> { (it.first().y / 14f).toInt() }.thenBy { it.first().x }
-        ).toMutableList()
-
-        while (ordered.size > targetCount && ordered.size >= 2) {
-            // Merge the shortest chain into its nearest neighbor
-            var minIdx = 0
-            var minSize = ordered[0].size
-            for (i in 1 until ordered.size) {
-                if (ordered[i].size < minSize) {
-                    minSize = ordered[i].size
-                    minIdx = i
-                }
-            }
-            val removed = ordered.removeAt(minIdx)
-            val mergeTarget = if (minIdx < ordered.size) minIdx else ordered.size - 1
-            ordered[mergeTarget] = ordered[mergeTarget] + removed
-        }
-
-        return ordered
-    }
-
-    private fun simplifyChain(pts: List<StrokePoint>): List<StrokePoint> {
-        if (pts.size <= 4) return listOf(pts.first(), pts.last())
-        val step = max(2, pts.size / 5)
-        val result = ArrayList<StrokePoint>()
-        var i = 0
-        while (i < pts.size - 1) {
-            result.add(pts[i])
-            i += step
-        }
-        result.add(pts.last())
-        return result
-    }
-
-    private fun zhangSuenThin(grid: BooleanArray, size: Int) {
-        val toClear = IntArray(size * size)
-        var iter = 0
-        while (iter < 12) {
-            iter++
-            var changed = false
-            for (step in 0..1) {
-                var clearCount = 0
-                for (y in 1 until size - 1) {
-                    for (x in 1 until size - 1) {
-                        val idx = y * size + x
-                        if (!grid[idx]) continue
-                        val p2 = if (grid[(y - 1) * size + x]) 1 else 0
-                        val p3 = if (grid[(y - 1) * size + (x + 1)]) 1 else 0
-                        val p4 = if (grid[y * size + (x + 1)]) 1 else 0
-                        val p5 = if (grid[(y + 1) * size + (x + 1)]) 1 else 0
-                        val p6 = if (grid[(y + 1) * size + x]) 1 else 0
-                        val p7 = if (grid[(y + 1) * size + (x - 1)]) 1 else 0
-                        val p8 = if (grid[y * size + (x - 1)]) 1 else 0
-                        val p9 = if (grid[(y - 1) * size + (x - 1)]) 1 else 0
-
-                        val b = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9
-                        if (b < 2 || b > 6) continue
-
-                        var a = 0
-                        if (p2 == 0 && p3 == 1) a++
-                        if (p3 == 0 && p4 == 1) a++
-                        if (p4 == 0 && p5 == 1) a++
-                        if (p5 == 0 && p6 == 1) a++
-                        if (p6 == 0 && p7 == 1) a++
-                        if (p7 == 0 && p8 == 1) a++
-                        if (p8 == 0 && p9 == 1) a++
-                        if (p9 == 0 && p2 == 1) a++
-                        if (a != 1) continue
-
-                        val cond = if (step == 0) {
-                            (p2 * p4 * p6 == 0) && (p4 * p6 * p8 == 0)
-                        } else {
-                            (p2 * p4 * p8 == 0) && (p2 * p6 * p8 == 0)
-                        }
-                        if (cond) {
-                            toClear[clearCount++] = idx
-                        }
-                    }
-                }
-                if (clearCount > 0) {
-                    changed = true
-                    for (i in 0 until clearCount) {
-                        grid[toClear[i]] = false
-                    }
-                }
-            }
-            if (!changed) break
         }
     }
 
@@ -300,43 +101,86 @@ object AndroidGlyphRasterizer {
     }
 }
 
+private class GlyphCanvasScratch {
+    val ghostPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    val inkPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    val brushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    val nibGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    val nibCorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
+    val segmentPath = AndroidPath()
+    val pathMeasure = PathMeasure()
+    val tipPos = FloatArray(2)
+}
+
 @Composable
 fun AnimatedHanziBox(
     character: String,
     strokeCount: Int,
     replayTrigger: Int,
     onActiveStrokeIndex: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    externalProgressProvider: (() -> Float)? = null,
+    isHighlighted: Boolean = false
 ) {
-    val handwrittenStrokes = remember(character, strokeCount) {
-        AndroidGlyphRasterizer.getHandwrittenStrokes(character, strokeCount)
+    val svgGlyph = remember(character) {
+        MakeMeAHanziRepository.getGlyph(character)
     }
-    val effectiveStrokeCount = handwrittenStrokes?.size ?: strokeCount.coerceAtLeast(1)
-
-    val progress = remember(character, replayTrigger) { Animatable(0f) }
-
-    LaunchedEffect(character, replayTrigger) {
-        progress.snapTo(0f)
-        // Calm, slower instructional pace (~950 ms per stroke)
-        val durationMs = (effectiveStrokeCount * 950).coerceIn(1900, 11000)
-        progress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = durationMs, easing = LinearEasing)
-        )
-        onActiveStrokeIndex(-1)
+    val fallbackStrokes = remember(character, svgGlyph == null) {
+        if (svgGlyph == null) HanziStrokePaths.getNormalizedStrokes(character) else null
     }
 
-    val p = progress.value
-    LaunchedEffect(p, effectiveStrokeCount, strokeCount) {
-        val badgeCount = strokeCount.coerceAtLeast(1)
-        if (p < 0.995f && badgeCount > 0) {
-            val idx = (p * badgeCount).toInt().coerceIn(0, badgeCount - 1)
-            onActiveStrokeIndex(idx)
-        } else {
+    val internalProgress = remember(character, replayTrigger) { Animatable(0f) }
+
+    LaunchedEffect(character, replayTrigger, externalProgressProvider == null) {
+        if (externalProgressProvider == null) {
+            internalProgress.snapTo(0f)
+            val durationMs = if (svgGlyph != null) {
+                (svgGlyph.totalWeight * 490f).roundToInt().coerceIn(1100, 9500)
+            } else {
+                (strokeCount.coerceAtLeast(1) * 520).coerceIn(1100, 7500)
+            }
+            internalProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = durationMs, easing = LinearEasing)
+            )
             onActiveStrokeIndex(-1)
         }
     }
 
+    // Emit stroke index updates ONLY when the integer stroke index actually changes,
+    // avoiding 60fps recompositions of the parent sheet/badges.
+    LaunchedEffect(character, strokeCount, svgGlyph, externalProgressProvider) {
+        val badgeCount = strokeCount.coerceAtLeast(1)
+        snapshotFlow {
+            val p = (externalProgressProvider?.invoke() ?: internalProgress.value).coerceIn(0f, 1f)
+            if (p <= 0.002f || p >= 0.996f) {
+                -1
+            } else if (svgGlyph != null) {
+                val rawIdx = activeStrokeIndexForProgress(svgGlyph, p).first
+                rawIdx.coerceIn(0, badgeCount - 1)
+            } else {
+                (p * badgeCount).toInt().coerceIn(0, badgeCount - 1)
+            }
+        }
+            .distinctUntilChanged()
+            .collect { idx ->
+                onActiveStrokeIndex(idx)
+            }
+    }
+
+    val scratch = remember { GlyphCanvasScratch() }
     val inkColor = MaterialTheme.colorScheme.onSurface
     val accentColor = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.outline
@@ -345,7 +189,10 @@ fun AnimatedHanziBox(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.5.dp, accentColor.copy(alpha = 0.45f))
+        border = BorderStroke(
+            width = if (isHighlighted) 2.2.dp else 1.5.dp,
+            color = if (isHighlighted) accentColor else accentColor.copy(alpha = 0.45f)
+        )
     ) {
         Box(
             modifier = Modifier
@@ -356,15 +203,23 @@ fun AnimatedHanziBox(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawTianzigeGrid(gridColor)
 
+                val p = (externalProgressProvider?.invoke() ?: internalProgress.value).coerceIn(0f, 1f)
                 val boxSize = size.minDimension
-                val baseStrokeWidth = boxSize * 0.056f
 
-                if (handwrittenStrokes != null) {
-                    drawHandwrittenSequence(
-                        strokes = handwrittenStrokes,
+                if (svgGlyph != null) {
+                    drawMakeMeAHanziSequence(
+                        glyph = svgGlyph,
                         progress = p,
                         boxSize = boxSize,
-                        baseWidth = baseStrokeWidth,
+                        inkColor = inkColor,
+                        nibColor = accentColor,
+                        scratch = scratch
+                    )
+                } else if (fallbackStrokes != null) {
+                    drawFallbackStrokes(
+                        strokes = fallbackStrokes,
+                        progress = p,
+                        boxSize = boxSize,
                         inkColor = inkColor,
                         nibColor = accentColor
                     )
@@ -381,67 +236,163 @@ fun AnimatedHanziBox(
     }
 }
 
-private fun DrawScope.drawHandwrittenSequence(
+private fun activeStrokeIndexForProgress(
+    glyph: MakeMeAHanziGlyph,
+    progress: Float
+): Pair<Int, Float> {
+    val strokes = glyph.strokes
+    if (strokes.isEmpty()) return -1 to 1f
+    val targetWeight = progress * glyph.totalWeight
+    var acc = 0f
+    for (i in strokes.indices) {
+        val w = strokes[i].durationWeight
+        if (targetWeight < acc + w || i == strokes.lastIndex) {
+            val local = ((targetWeight - acc) / w).coerceIn(0f, 1f)
+            return i to local
+        }
+        acc += w
+    }
+    return strokes.lastIndex to 1f
+}
+
+private fun DrawScope.drawMakeMeAHanziSequence(
+    glyph: MakeMeAHanziGlyph,
+    progress: Float,
+    boxSize: Float,
+    inkColor: Color,
+    nibColor: Color,
+    scratch: GlyphCanvasScratch
+) {
+    val pad = boxSize * 0.06f
+    val glyphSpan = max(1f, boxSize - pad * 2f)
+    val scaleFactor = glyphSpan / 1024f
+
+    val nativeCanvas = drawContext.canvas.nativeCanvas
+    nativeCanvas.save()
+    nativeCanvas.translate(pad, pad)
+    nativeCanvas.scale(scaleFactor, scaleFactor)
+
+    // 1. Crisp authentic KaiTi ghost guide underneath (exact strokes at subtle opacity)
+    scratch.ghostPaint.color = inkColor.copy(alpha = 0.13f).toArgb()
+    for (s in glyph.strokes) {
+        nativeCanvas.drawPath(s.outlinePath, scratch.ghostPaint)
+    }
+
+    if (progress <= 0.001f) {
+        nativeCanvas.restore()
+        return
+    }
+
+    if (progress >= 0.996f) {
+        // Completed character uses the exact same stroke vector outlines — zero pop or font swap
+        scratch.inkPaint.color = inkColor.toArgb()
+        for (s in glyph.strokes) {
+            nativeCanvas.drawPath(s.outlinePath, scratch.inkPaint)
+        }
+        nativeCanvas.restore()
+        return
+    }
+
+    val (activeIdx, rawLocal) = activeStrokeIndexForProgress(glyph, progress)
+    if (activeIdx < 0) {
+        nativeCanvas.restore()
+        return
+    }
+
+    // 2. Draw all completed strokes cleanly
+    scratch.inkPaint.color = inkColor.toArgb()
+    for (i in 0 until activeIdx) {
+        nativeCanvas.drawPath(glyph.strokes[i].outlinePath, scratch.inkPaint)
+    }
+
+    // 3. Draw ONLY the active stroke clipped strictly to its own outlinePath (zero overlap onto other strokes)
+    val activeStroke = glyph.strokes[activeIdx]
+    // Smooth cosine ease-in-out for natural human calligraphic brush acceleration
+    val eased = (0.5f - 0.5f * cos(rawLocal * PI.toFloat())).coerceIn(0f, 1f)
+    val touchAlpha = (rawLocal / 0.07f).coerceIn(0f, 1f)
+
+    scratch.pathMeasure.setPath(activeStroke.medianPath, false)
+    val totalLen = scratch.pathMeasure.length
+    val drawLen = (totalLen * eased).coerceAtLeast(1f)
+
+    scratch.segmentPath.rewind()
+    val hasSegment = scratch.pathMeasure.getSegment(0f, drawLen, scratch.segmentPath, true)
+
+    nativeCanvas.save()
+    nativeCanvas.clipPath(activeStroke.outlinePath)
+
+    if (hasSegment) {
+        val baseBrushWidth = (activeStroke.medianLength * 1.1f).coerceIn(138f, 224f)
+        val endFlareBoost = if (eased > 0.78f) {
+            130f * ((eased - 0.78f) / 0.22f)
+        } else {
+            0f
+        }
+        scratch.brushPaint.strokeWidth = baseBrushWidth + endFlareBoost
+        scratch.brushPaint.color = inkColor.copy(alpha = touchAlpha).toArgb()
+        nativeCanvas.drawPath(scratch.segmentPath, scratch.brushPaint)
+    }
+
+    // Gentle final settle inside this stroke's own clip so sharp hooks complete seamlessly
+    if (eased > 0.86f) {
+        val settleAlpha = ((eased - 0.86f) / 0.14f).coerceIn(0f, 1f)
+        scratch.inkPaint.color = inkColor.copy(alpha = settleAlpha).toArgb()
+        nativeCanvas.drawPath(activeStroke.outlinePath, scratch.inkPaint)
+    }
+
+    nativeCanvas.restore()
+
+    // 4. Subtle brush tip tracker along the active median while writing
+    if (eased in 0.03f..0.95f) {
+        scratch.pathMeasure.getPosTan(drawLen, scratch.tipPos, null)
+        val tipX = scratch.tipPos[0]
+        val tipY = scratch.tipPos[1]
+        scratch.nibGlowPaint.color = nibColor.copy(alpha = 0.26f).toArgb()
+        scratch.nibCorePaint.color = nibColor.copy(alpha = 0.90f).toArgb()
+        nativeCanvas.drawCircle(tipX, tipY, 52f, scratch.nibGlowPaint)
+        nativeCanvas.drawCircle(tipX, tipY, 24f, scratch.nibCorePaint)
+    }
+
+    nativeCanvas.restore()
+}
+
+private fun DrawScope.drawFallbackStrokes(
     strokes: List<List<StrokePoint>>,
     progress: Float,
     boxSize: Float,
-    baseWidth: Float,
     inkColor: Color,
     nibColor: Color
 ) {
     val scale = boxSize / 100f
+    val baseWidth = boxSize * 0.056f
     val ghostColor = inkColor.copy(alpha = 0.13f)
 
-    // 1. Faint handwritten guide underneath (all strokes at full normal line thickness)
     for (stroke in strokes) {
-        drawCalligraphicStroke(
-            pts = stroke,
-            fraction = 1f,
-            scale = scale,
-            baseWidth = baseWidth,
-            color = ghostColor
-        )
+        drawSimpleStroke(stroke, 1f, scale, baseWidth, ghostColor)
     }
 
-    // 2. Draw completed strokes & active stroke directly as normal solid lines (no fill-in)
-    val totalStrokes = strokes.size
+    val totalStrokes = strokes.size.coerceAtLeast(1)
     val slotSize = 1f / totalStrokes
     var activeTip: Offset? = null
 
     for (i in 0 until totalStrokes) {
         val slotStart = i * slotSize
         if (progress <= slotStart) break
-
-        // First 84% of each stroke slot draws the stroke; remaining 16% is a gentle pen-lift pause
-        val localRaw = ((progress - slotStart) / (slotSize * 0.84f)).coerceIn(0f, 1f)
-        val tip = drawCalligraphicStroke(
-            pts = strokes[i],
-            fraction = localRaw,
-            scale = scale,
-            baseWidth = baseWidth,
-            color = inkColor
-        )
+        val localRaw = ((progress - slotStart) / slotSize).coerceIn(0f, 1f)
+        val eased = (0.5f - 0.5f * cos(localRaw * PI.toFloat())).coerceIn(0f, 1f)
+        val tip = drawSimpleStroke(strokes[i], eased, scale, baseWidth, inkColor)
         if (localRaw < 1f && tip != null) {
             activeTip = tip
         }
     }
 
-    // 3. Pen/brush nib marker only while actively writing
     if (activeTip != null && progress < 0.995f) {
-        drawCircle(
-            color = nibColor.copy(alpha = 0.25f),
-            radius = baseWidth * 1.45f,
-            center = activeTip
-        )
-        drawCircle(
-            color = nibColor,
-            radius = baseWidth * 0.62f,
-            center = activeTip
-        )
+        drawCircle(color = nibColor.copy(alpha = 0.24f), radius = baseWidth * 1.4f, center = activeTip)
+        drawCircle(color = nibColor, radius = baseWidth * 0.6f, center = activeTip)
     }
 }
 
-private fun DrawScope.drawCalligraphicStroke(
+private fun DrawScope.drawSimpleStroke(
     pts: List<StrokePoint>,
     fraction: Float,
     scale: Float,
@@ -449,51 +400,29 @@ private fun DrawScope.drawCalligraphicStroke(
     color: Color
 ): Offset? {
     if (pts.size < 2 || fraction <= 0f) return null
-
-    // Build smooth quadratic path in Android Path so PathMeasure samples evenly
     val androidPath = AndroidPath().apply {
         moveTo(pts[0].x * scale, pts[0].y * scale)
-        if (pts.size == 2) {
-            lineTo(pts[1].x * scale, pts[1].y * scale)
-        } else {
-            for (i in 1 until pts.size - 1) {
-                val currX = pts[i].x * scale
-                val currY = pts[i].y * scale
-                val nextX = pts[i + 1].x * scale
-                val nextY = pts[i + 1].y * scale
-                quadTo(currX, currY, (currX + nextX) * 0.5f, (currY + nextY) * 0.5f)
-            }
-            lineTo(pts.last().x * scale, pts.last().y * scale)
+        for (i in 1 until pts.size) {
+            lineTo(pts[i].x * scale, pts[i].y * scale)
         }
     }
-
     val pm = PathMeasure(androidPath, false)
     val totalLen = pm.length
     if (totalLen <= 0.5f) return null
 
     val drawLen = totalLen * fraction.coerceIn(0f, 1f)
-    val step = max(2f, totalLen / 28f)
-
+    val step = max(1.8f, totalLen / 24f)
     val posPrev = FloatArray(2)
     val posCurr = FloatArray(2)
     pm.getPosTan(0f, posPrev, null)
-
     var dist = step
     var lastOffset = Offset(posPrev[0], posPrev[1])
 
     while (dist < drawLen) {
         pm.getPosTan(dist, posCurr, null)
-        val t = (dist / totalLen).coerceIn(0f, 1f)
-        val width = calligraphicWidthAt(t, baseWidth)
         val startPt = Offset(posPrev[0], posPrev[1])
         val endPt = Offset(posCurr[0], posCurr[1])
-        drawLine(
-            color = color,
-            start = startPt,
-            end = endPt,
-            strokeWidth = width,
-            cap = StrokeCap.Round
-        )
+        drawLine(color = color, start = startPt, end = endPt, strokeWidth = baseWidth, cap = StrokeCap.Round)
         posPrev[0] = posCurr[0]
         posPrev[1] = posCurr[1]
         lastOffset = endPt
@@ -502,28 +431,11 @@ private fun DrawScope.drawCalligraphicStroke(
 
     if (drawLen > 0f) {
         pm.getPosTan(drawLen, posCurr, null)
-        val t = (drawLen / totalLen).coerceIn(0f, 1f)
-        val width = calligraphicWidthAt(t, baseWidth)
         val endPt = Offset(posCurr[0], posCurr[1])
-        drawLine(
-            color = color,
-            start = Offset(posPrev[0], posPrev[1]),
-            end = endPt,
-            strokeWidth = width,
-            cap = StrokeCap.Round
-        )
+        drawLine(color = color, start = Offset(posPrev[0], posPrev[1]), end = endPt, strokeWidth = baseWidth, cap = StrokeCap.Round)
         lastOffset = endPt
     }
-
     return lastOffset
-}
-
-private fun calligraphicWidthAt(t: Float, baseWidth: Float): Float {
-    return when {
-        t < 0.14f -> baseWidth * (1.10f - 0.12f * (t / 0.14f))
-        t > 0.78f -> baseWidth * (0.98f - 0.34f * ((t - 0.78f) / 0.22f))
-        else -> baseWidth * 0.98f
-    }
 }
 
 private fun DrawScope.drawSerifProgressiveReveal(
@@ -543,12 +455,9 @@ private fun DrawScope.drawSerifProgressiveReveal(
     val y = (boxSize + bounds.height()) * 0.5f - bounds.bottom
 
     val nativeCanvas = drawContext.canvas.nativeCanvas
-
-    // Faint handwritten-serif guide
-    paint.color = inkColor.copy(alpha = 0.13f).toArgb()
+    paint.color = inkColor.copy(alpha = 0.14f).toArgb()
     nativeCanvas.drawText(character, x, y, paint)
 
-    // Progressive top-to-bottom solid reveal (no hollow outline, no fade fill)
     val revealHeight = (size.height * progress).coerceIn(0f, size.height)
     clipRect(left = 0f, top = 0f, right = size.width, bottom = revealHeight) {
         paint.color = inkColor.toArgb()

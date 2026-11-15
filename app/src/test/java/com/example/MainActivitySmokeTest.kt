@@ -5,6 +5,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -65,10 +66,23 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithTag("write_hint_button").performScrollTo().performClick()
         composeRule.waitForIdle()
 
-        // Navigate to Dictionary tab ("Словарь")
+        // Navigate to Dictionary tab ("Словарь") and open a multi-character word ("白天") for full-word animation
         composeRule.onNodeWithTag("nav_dictionary").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("dictionary_search_input").assertExists()
+        composeRule.onNodeWithTag("dict_tab_words").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("dictionary_search_input").performTextInput("白天")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("dict_word_5").performClick()
+        composeRule.waitUntil(timeoutMillis = 3_000L) {
+            composeRule.onAllNodesWithTag("detail_animated_word").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("detail_animated_word").assertExists()
+        composeRule.onNodeWithTag("detail_animated_hanzi").assertExists()
+        composeRule.onNodeWithTag("detail_word_char_box_1").assertExists()
+        composeRule.onNodeWithTag("detail_close_button").performClick()
+        composeRule.waitForIdle()
 
         // Navigate to Settings tab ("Настройки"), switch HSK 2.0 <-> HSK 3.0, and toggle HSK2
         composeRule.onNodeWithTag("nav_settings").performClick()

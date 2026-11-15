@@ -101,6 +101,54 @@ object HanziCatalog {
         byCharacterHsk30[char] ?: byCharacterHsk20[char]
     }
 
+    fun findWordByHanzi(
+        hanzi: String,
+        standard: HskStandard = HskStandard.HSK_3_0
+    ): HskWordEntry? {
+        val trimmed = hanzi.trim()
+        val primary = allWordsFor(standard).firstOrNull { it.hanzi == trimmed }
+        if (primary != null) return primary
+        val fallbackStd = if (standard == HskStandard.HSK_2_0) HskStandard.HSK_3_0 else HskStandard.HSK_2_0
+        return allWordsFor(fallbackStd).firstOrNull { it.hanzi == trimmed }
+    }
+
+    fun resolveWordEntries(
+        word: HskWordEntry,
+        standard: HskStandard = HskStandard.HSK_3_0
+    ): List<HanziEntry> = resolveWordEntries(
+        hanzi = word.hanzi,
+        pinyin = word.pinyin,
+        meaningRu = word.meaningRu,
+        hskLevel = word.hskLevel,
+        standard = standard
+    )
+
+    fun resolveWordEntries(
+        hanzi: String,
+        pinyin: String,
+        meaningRu: String,
+        hskLevel: HskLevel = HskLevel.HSK1,
+        standard: HskStandard = HskStandard.HSK_3_0
+    ): List<HanziEntry> {
+        val chars = hanzi.map { it.toString() }
+            .filter { ch -> ch.isNotBlank() && ch[0].code >= 0x3400 }
+        val syllables = pinyin.trim()
+            .split(Regex("[\\s'’·]+"))
+            .filter { it.isNotBlank() }
+
+        return chars.mapIndexed { idx, ch ->
+            findByCharacter(ch, standard) ?: HanziEntry(
+                character = ch,
+                pinyin = syllables.getOrNull(idx) ?: pinyin,
+                meaningRu = meaningRu,
+                hskLevel = hskLevel,
+                strokeCode = "1234",
+                radical = ch,
+                examples = emptyList()
+            )
+        }
+    }
+
     fun search(
         query: String,
         enabledLevels: Set<HskLevel>,

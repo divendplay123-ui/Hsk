@@ -13,6 +13,7 @@ import com.example.data.model.StrokeType
 import com.example.data.repository.HanziCatalog
 import com.example.data.repository.SettingsRepository
 import com.example.domain.DrawnStroke
+import com.example.domain.MakeMeAHanziRepository
 import com.example.domain.RecallChallenge
 import com.example.domain.SrsEngine
 import com.example.domain.SrsRating
@@ -53,6 +54,9 @@ class HanziViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedEntry = MutableStateFlow<HanziEntry?>(null)
     val selectedEntry: StateFlow<HanziEntry?> = _selectedEntry.asStateFlow()
+
+    private val _selectedWord = MutableStateFlow<HskWordEntry?>(null)
+    val selectedWord: StateFlow<HskWordEntry?> = _selectedWord.asStateFlow()
 
     private val _dictionaryQuery = MutableStateFlow("")
     val dictionaryQuery: StateFlow<String> = _dictionaryQuery.asStateFlow()
@@ -133,6 +137,7 @@ class HanziViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch(Dispatchers.Default) {
+            MakeMeAHanziRepository.preload()
             HanziCatalog.entriesForLevels(setOf(HskLevel.HSK1), HskStandard.HSK_3_0).forEachIndexed { idx, entry ->
                 AndroidGlyphRasterizer.getFeaturesForCharacter(entry.character)
                 if (idx % 24 == 0) yield()
@@ -292,6 +297,14 @@ class HanziViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openCharacterDetail(entry: HanziEntry) {
+        _selectedWord.value = null
+        _selectedEntry.value = entry
+        viewModelScope.launch {
+            settingsRepository.addRecentCharacter(entry.character)
+        }
+    }
+
+    fun selectCharacterInWord(entry: HanziEntry) {
         _selectedEntry.value = entry
         viewModelScope.launch {
             settingsRepository.addRecentCharacter(entry.character)
@@ -300,6 +313,7 @@ class HanziViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeCharacterDetail() {
         _selectedEntry.value = null
+        _selectedWord.value = null
     }
 
     fun updateDictionaryQuery(query: String) {
@@ -316,18 +330,49 @@ class HanziViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openWordDetail(word: HskWordEntry) {
         val standard = settings.value.hskStandard
-        val firstEntry = word.hanzi
-            .map { it.toString() }
-            .firstNotNullOfOrNull { HanziCatalog.findByCharacter(it, standard) }
-        if (firstEntry != null) {
-            openCharacterDetail(firstEntry)
+        val resolvedEntries = HanziCatalog.resolveWordEntries(word, standard)
+        val firstEntry = resolvedEntries.firstOrNull() ?: return
+        _selectedWord.value = word
+        _selectedEntry.value = firstEntry
+        viewModelScope.launch {
+            resolvedEntries.forEach { entry ->
+                settingsRepository.addRecentCharacter(entry.character)
+            }
         }
+    }
+
+    fun openExampleWordDetail(
+        hanzi: String,
+        pinyin: String,
+        meaningRu: String,
+        fallbackLevel: HskLevel = HskLevel.HSK1
+    ) {
+        val standard = settings.value.hskStandard
+        val catalogWord = HanziCatalog.findWordByHanzi(hanzi, standard)
+        val word = catalogWord ?: HskWordEntry(
+            number = 0,
+            hskLevel = fallbackLevel,
+            hanzi = hanzi.trim(),
+            pinyin = pinyin.trim(),
+            pos = "",
+            meaningEn = "",
+            meaningRu = meaningRu.trim()
+        )
+        openWordDetail(word)
     }
 
     fun openCharacterByChar(charStr: String) {
         val standard = settings.value.hskStandard
-        val entry = HanziCatalog.findByCharacter(charStr, standard)
-            ?: charStr.map { it.toString() }.firstNotNullOfOrNull { HanziCatalog.findByCharacter(it, standard) }
+        val trimmed = charStr.trim()
+        if (trimmed.length > 1) {
+            val catalogWord = HanziCatalog.findWordByHanzi(trimmed, standard)
+            if (catalogWord != null) {
+                openWordDetail(catalogWord)
+                return
+            }
+        }
+        val entry = HanziCatalog.findByCharacter(trimmed, standard)
+            ?: trimmed.map { it.toString() }.firstNotNullOfOrNull { HanziCatalog.findByCharacter(it, standard) }
         if (entry != null) {
             openCharacterDetail(entry)
         }

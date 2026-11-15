@@ -519,21 +519,35 @@ fun WritePracticeSection(
             }
         }
 
-        // Animated Hint Card when toggled
+        // Animated Hint Card when toggled: shows all characters of the word side-by-side
         if (state.showHintAnimation) {
+            val hintChars = if (wordChars.isNotEmpty()) wordChars else listOf(target)
+            val boxSizeDp = when {
+                hintChars.size <= 2 -> 108.dp
+                hintChars.size == 3 -> 90.dp
+                else -> 76.dp
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally)
             ) {
-                AnimatedHanziBox(
-                    character = target.character,
-                    strokeCount = target.strokeCount,
-                    replayTrigger = 0,
-                    onActiveStrokeIndex = {},
-                    modifier = Modifier
-                        .size(118.dp)
-                        .clickable { onOpenDetail(target) }
-                )
+                hintChars.forEachIndexed { idx, ch ->
+                    val isCurrent = idx == state.activeCharIndex
+                    AnimatedHanziBox(
+                        character = ch.character,
+                        strokeCount = ch.strokeCount,
+                        replayTrigger = if (isCurrent) 1 else 0,
+                        onActiveStrokeIndex = {},
+                        externalProgressProvider = if (isCurrent) null else { { 1f } },
+                        isHighlighted = isCurrent,
+                        modifier = Modifier
+                            .size(boxSizeDp)
+                            .clickable {
+                                onSelectCharIndex(idx)
+                                onOpenDetail(ch)
+                            }
+                    )
+                }
             }
         }
 

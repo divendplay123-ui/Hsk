@@ -6,6 +6,7 @@ import com.example.data.model.StrokeType
 import com.example.data.repository.HanziCatalog
 import com.example.domain.DrawnStroke
 import com.example.domain.HanziStrokePaths
+import com.example.domain.MakeMeAHanziRepository
 import com.example.domain.StrokePoint
 import com.example.domain.StrokeRecognizer
 import com.example.domain.VisualShapeMatcher
@@ -93,6 +94,15 @@ class StrokeRecognizerTest {
         assertTrue("Expected 词典 for 'cidi' in HSK 2.0", cidiWords20.any { it.hanzi == "词典" })
         val cidiChars20 = HanziCatalog.search("cidian", setOf(HskLevel.HSK3), HskStandard.HSK_2_0)
         assertTrue("Expected 词/典 example match for 'cidian' in HSK 2.0", cidiChars20.any { it.character == "词" })
+
+        // Verify resolveWordEntries returns all characters of multi-character words for full-word animation
+        val cidianWord = cidiWords20.first { it.hanzi == "词典" }
+        val cidianEntries = HanziCatalog.resolveWordEntries(cidianWord, HskStandard.HSK_2_0)
+        assertEquals(listOf("词", "典"), cidianEntries.map { it.character })
+
+        val bukeqiWord = HanziCatalog.findWordByHanzi("不客气", HskStandard.HSK_2_0)!!
+        val bukeqiEntries = HanziCatalog.resolveWordEntries(bukeqiWord, HskStandard.HSK_2_0)
+        assertEquals(listOf("不", "客", "气"), bukeqiEntries.map { it.character })
     }
 
     @Test
@@ -241,6 +251,7 @@ class StrokeRecognizerTest {
     @Test
     fun handwrittenStrokePathsMatchCatalogStrokeCounts() {
         (HanziCatalog.allEntries + HanziCatalog.allEntriesFor(HskStandard.HSK_2_0)).forEach { entry ->
+            assertTrue("Missing MakeMeAHanzi SVG data for '${entry.character}'", MakeMeAHanziRepository.hasGlyph(entry.character))
             val strokes = HanziStrokePaths.getNormalizedStrokes(entry.character)
             assertTrue("Missing handwritten strokes for '${entry.character}'", strokes != null)
             assertEquals(

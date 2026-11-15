@@ -67,6 +67,7 @@ fun MainScreen(
     val drawnStrokes by viewModel.drawnStrokes.collectAsStateWithLifecycle()
     val localCandidates by viewModel.localCandidates.collectAsStateWithLifecycle()
     val selectedEntry by viewModel.selectedEntry.collectAsStateWithLifecycle()
+    val selectedWord by viewModel.selectedWord.collectAsStateWithLifecycle()
     val dictionaryQuery by viewModel.dictionaryQuery.collectAsStateWithLifecycle()
     val dictionaryLevelFilter by viewModel.dictionaryLevelFilter.collectAsStateWithLifecycle()
     val dictionaryEntries by viewModel.dictionaryEntries.collectAsStateWithLifecycle()
@@ -260,7 +261,11 @@ fun MainScreen(
     selectedEntry?.let { entry ->
         CharacterDetailSheet(
             entry = entry,
-            onDismiss = viewModel::closeCharacterDetail
+            onDismiss = viewModel::closeCharacterDetail,
+            word = selectedWord,
+            standard = settings.hskStandard,
+            onSelectCharacterInWord = viewModel::selectCharacterInWord,
+            onSelectExampleWord = viewModel::openExampleWordDetail
         )
     }
 }

@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Hanzi HSK</string>
+    <string name="nav_draw">Черты</string>
+    <string name="nav_study">Учить</string>
+    <string name="nav_dictionary">Словарь</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="draw_title">Поиск по чертам</string>
+    <string name="draw_hint">Нарисуйте иероглиф по чертам в рамке</string>
+    <string name="action_undo">Отменить</string>
+    <string name="action_clear">Очистить</string>
+    <string name="settings_hsk_section">Уровни словаря HSK</string>
+    <string name="settings_canvas_section">Холст и распознавание</string>
+</resources>

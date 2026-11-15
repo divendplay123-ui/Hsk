@@ -1,0 +1,6 @@
+{
+  "name": "Hanzi HSK",
+  "description": "Определение китайских иероглифов HSK 1–4 по рукописным чертам с переключателями уровней в настройках.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

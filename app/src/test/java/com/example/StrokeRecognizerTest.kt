@@ -27,13 +27,14 @@ class StrokeRecognizerTest {
         assertEquals(49, HanziCatalog.wordCountForLevel(HskLevel.UNI))
         assertEquals(2049, HanziCatalog.allWords.size)
 
-        // Official HSK 3.0 unique character counts + UNI block
-        assertEquals(248, HanziCatalog.countForLevel(HskLevel.HSK1))
-        assertEquals(123, HanziCatalog.countForLevel(HskLevel.HSK2))
-        assertEquals(284, HanziCatalog.countForLevel(HskLevel.HSK3))
-        assertEquals(441, HanziCatalog.countForLevel(HskLevel.HSK4))
-        assertEquals(5, HanziCatalog.countForLevel(HskLevel.UNI))
+        // Unique character counts after moving all 165 UNI curriculum characters to UNI (level 5)
+        assertEquals(110, HanziCatalog.countForLevel(HskLevel.HSK1))
+        assertEquals(117, HanziCatalog.countForLevel(HskLevel.HSK2))
+        assertEquals(272, HanziCatalog.countForLevel(HskLevel.HSK3))
+        assertEquals(437, HanziCatalog.countForLevel(HskLevel.HSK4))
+        assertEquals(165, HanziCatalog.countForLevel(HskLevel.UNI))
         assertEquals(1101, HanziCatalog.allEntries.size)
+        assertEquals(1101, HanziCatalog.allEntries.map { it.character }.toSet().size)
 
         HanziCatalog.allEntries.forEach { entry ->
             assertTrue("Empty character", entry.character.isNotBlank())
@@ -55,12 +56,16 @@ class StrokeRecognizerTest {
         assertEquals(56, HanziCatalog.wordCountForLevel(HskLevel.UNI, HskStandard.HSK_2_0))
         assertEquals(1256, HanziCatalog.allWordsFor(HskStandard.HSK_2_0).size)
 
-        assertEquals(174, HanziCatalog.countForLevel(HskLevel.HSK1, HskStandard.HSK_2_0))
-        assertEquals(174, HanziCatalog.countForLevel(HskLevel.HSK2, HskStandard.HSK_2_0))
-        assertEquals(270, HanziCatalog.countForLevel(HskLevel.HSK3, HskStandard.HSK_2_0))
-        assertEquals(446, HanziCatalog.countForLevel(HskLevel.HSK4, HskStandard.HSK_2_0))
-        assertEquals(4, HanziCatalog.countForLevel(HskLevel.UNI, HskStandard.HSK_2_0))
+        assertEquals(46, HanziCatalog.countForLevel(HskLevel.HSK1, HskStandard.HSK_2_0))
+        assertEquals(161, HanziCatalog.countForLevel(HskLevel.HSK2, HskStandard.HSK_2_0))
+        assertEquals(255, HanziCatalog.countForLevel(HskLevel.HSK3, HskStandard.HSK_2_0))
+        assertEquals(441, HanziCatalog.countForLevel(HskLevel.HSK4, HskStandard.HSK_2_0))
+        assertEquals(165, HanziCatalog.countForLevel(HskLevel.UNI, HskStandard.HSK_2_0))
         assertEquals(1068, HanziCatalog.allEntriesFor(HskStandard.HSK_2_0).size)
+        assertEquals(
+            1068,
+            HanziCatalog.allEntriesFor(HskStandard.HSK_2_0).map { it.character }.toSet().size
+        )
 
         HanziCatalog.allEntriesFor(HskStandard.HSK_2_0).forEach { entry ->
             assertTrue("Empty HSK 2.0 character", entry.character.isNotBlank())
@@ -86,13 +91,22 @@ class StrokeRecognizerTest {
             val uniChars = HanziCatalog.entriesForLevels(setOf(HskLevel.UNI), std).map { it.character }.toSet()
             assertTrue("Missing 王 in $std UNI", "王" in uniChars)
             assertTrue("Missing 俄 in $std UNI", "俄" in uniChars)
+            assertTrue("Missing 词 in $std UNI", "词" in uniChars)
+            assertTrue("Missing 典 in $std UNI", "典" in uniChars)
+            assertTrue("Missing 我 in $std UNI", "我" in uniChars)
             assertFalse("Unexpected key 氵 in $std UNI", "氵" in uniChars)
+            // Ensure UNI characters were moved out of HSK 1-4 (no duplicates)
+            val hsk14Chars = HanziCatalog.entriesForLevels(
+                setOf(HskLevel.HSK1, HskLevel.HSK2, HskLevel.HSK3, HskLevel.HSK4),
+                std
+            ).map { it.character }.toSet()
+            assertTrue("No UNI char should remain in HSK 1-4 for $std", (uniChars intersect hsk14Chars).isEmpty())
         }
 
         // Verify continuous pinyin queries match spaced HSK 2.0 pinyin (e.g. 'cidi' -> 'cí diǎn')
         val cidiWords20 = HanziCatalog.searchWords("cidi", setOf(HskLevel.HSK3), HskStandard.HSK_2_0)
         assertTrue("Expected 词典 for 'cidi' in HSK 2.0", cidiWords20.any { it.hanzi == "词典" })
-        val cidiChars20 = HanziCatalog.search("cidian", setOf(HskLevel.HSK3), HskStandard.HSK_2_0)
+        val cidiChars20 = HanziCatalog.search("cidian", setOf(HskLevel.HSK3, HskLevel.UNI), HskStandard.HSK_2_0)
         assertTrue("Expected 词/典 example match for 'cidian' in HSK 2.0", cidiChars20.any { it.character == "词" })
 
         // Verify resolveWordEntries returns all characters of multi-character words for full-word animation
@@ -181,7 +195,7 @@ class StrokeRecognizerTest {
 
         val candidates = StrokeRecognizer.matchCandidates(
             drawnStrokes = listOf(singleSquare),
-            enabledLevels = setOf(HskLevel.HSK1),
+            enabledLevels = setOf(HskLevel.HSK1, HskLevel.UNI),
             strictStrokeCount = false,
             templateFeaturesProvider = { ch -> templates[ch] ?: fallbackTemplate },
             limit = 5
@@ -193,29 +207,43 @@ class StrokeRecognizerTest {
 
     @Test
     fun matchingRespectsEnabledHskLevels() {
-        // '门' (strokeCode "425") is in HSK 2 in official HSK 3.0
-        val strokes = listOf(
-            StrokeRecognizer.fromManualStroke(StrokeType.DOT_OR_RIGHT_FALLING),
-            StrokeRecognizer.fromManualStroke(StrokeType.VERTICAL),
-            StrokeRecognizer.fromManualStroke(StrokeType.TURNING_OR_HOOK)
+        // '长' (strokeCode "3154") is in HSK 2 in HSK 3.0; '门' (strokeCode "425") is in UNI
+        val changStrokes = listOf(
+            StrokeRecognizer.fromManualStroke(StrokeType.LEFT_FALLING),
+            StrokeRecognizer.fromManualStroke(StrokeType.HORIZONTAL),
+            StrokeRecognizer.fromManualStroke(StrokeType.TURNING_OR_HOOK),
+            StrokeRecognizer.fromManualStroke(StrokeType.DOT_OR_RIGHT_FALLING)
         )
 
         val hsk1Only = StrokeRecognizer.matchCandidates(
-            drawnStrokes = strokes,
+            drawnStrokes = changStrokes,
             enabledLevels = setOf(HskLevel.HSK1),
             strictStrokeCount = true,
             limit = 30
         )
         assertTrue(hsk1Only.all { it.entry.hskLevel == HskLevel.HSK1 })
-        assertFalse(hsk1Only.any { it.entry.character == "门" })
+        assertFalse(hsk1Only.any { it.entry.character == "长" })
 
         val withHsk2 = StrokeRecognizer.matchCandidates(
-            drawnStrokes = strokes,
+            drawnStrokes = changStrokes,
             enabledLevels = setOf(HskLevel.HSK1, HskLevel.HSK2),
             strictStrokeCount = true,
             limit = 30
         )
-        assertTrue(withHsk2.any { it.entry.character == "门" })
+        assertTrue(withHsk2.any { it.entry.character == "长" })
+
+        val menStrokes = listOf(
+            StrokeRecognizer.fromManualStroke(StrokeType.DOT_OR_RIGHT_FALLING),
+            StrokeRecognizer.fromManualStroke(StrokeType.VERTICAL),
+            StrokeRecognizer.fromManualStroke(StrokeType.TURNING_OR_HOOK)
+        )
+        val withUni = StrokeRecognizer.matchCandidates(
+            drawnStrokes = menStrokes,
+            enabledLevels = setOf(HskLevel.HSK1, HskLevel.UNI),
+            strictStrokeCount = true,
+            limit = 30
+        )
+        assertTrue(withUni.any { it.entry.character == "门" && it.entry.hskLevel == HskLevel.UNI })
     }
 
     @Test

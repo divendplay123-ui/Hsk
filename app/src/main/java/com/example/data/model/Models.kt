@@ -12,13 +12,13 @@ enum class HskStandard(
         key = "HSK30",
         label = "HSK 3.0 (новый)",
         shortLabel = "HSK 3.0",
-        descriptionRu = "2 000 слов · 1 096 иерогл. (1–4) + ВУЗ"
+        descriptionRu = "2 000 слов · 936 иерогл. (1–4) + 165 ВУЗ"
     ),
     HSK_2_0(
         key = "HSK20",
         label = "HSK 2.0 (старый)",
         shortLabel = "HSK 2.0",
-        descriptionRu = "1 200 слов · 1 064 иерогл. (1–4) + ВУЗ"
+        descriptionRu = "1 200 слов · 903 иерогл. (1–4) + 165 ВУЗ"
     );
 
     companion object {
@@ -101,7 +101,7 @@ data class AppSettings(
     val includeHsk2: Boolean = false,
     val includeHsk3: Boolean = false,
     val includeHsk4: Boolean = false,
-    val includeUni: Boolean = false,
+    val includeUni: Boolean = true,
     val showGridGuide: Boolean = true,
     val strictStrokeCount: Boolean = false,
     val recentCharacters: List<String> = emptyList(),

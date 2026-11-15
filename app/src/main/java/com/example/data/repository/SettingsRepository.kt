@@ -70,7 +70,7 @@ class SettingsRepository(private val context: Context) {
             includeHsk2 = prefs[Keys.INCLUDE_HSK2] ?: false,
             includeHsk3 = prefs[Keys.INCLUDE_HSK3] ?: false,
             includeHsk4 = prefs[Keys.INCLUDE_HSK4] ?: false,
-            includeUni = prefs[Keys.INCLUDE_UNI] ?: false,
+            includeUni = prefs[Keys.INCLUDE_UNI] ?: true,
             showGridGuide = prefs[Keys.SHOW_GRID_GUIDE] ?: true,
             strictStrokeCount = prefs[Keys.STRICT_STROKE_COUNT] ?: false,
             recentCharacters = recentList,

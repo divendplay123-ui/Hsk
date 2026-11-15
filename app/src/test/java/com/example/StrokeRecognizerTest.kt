@@ -23,16 +23,16 @@ class StrokeRecognizerTest {
         assertEquals(200, HanziCatalog.wordCountForLevel(HskLevel.HSK2))
         assertEquals(500, HanziCatalog.wordCountForLevel(HskLevel.HSK3))
         assertEquals(1000, HanziCatalog.wordCountForLevel(HskLevel.HSK4))
-        assertEquals(229, HanziCatalog.wordCountForLevel(HskLevel.UNI))
-        assertEquals(2229, HanziCatalog.allWords.size)
+        assertEquals(49, HanziCatalog.wordCountForLevel(HskLevel.UNI))
+        assertEquals(2049, HanziCatalog.allWords.size)
 
         // Official HSK 3.0 unique character counts + UNI block
         assertEquals(248, HanziCatalog.countForLevel(HskLevel.HSK1))
         assertEquals(123, HanziCatalog.countForLevel(HskLevel.HSK2))
         assertEquals(284, HanziCatalog.countForLevel(HskLevel.HSK3))
         assertEquals(441, HanziCatalog.countForLevel(HskLevel.HSK4))
-        assertEquals(207, HanziCatalog.countForLevel(HskLevel.UNI))
-        assertEquals(1303, HanziCatalog.allEntries.size)
+        assertEquals(5, HanziCatalog.countForLevel(HskLevel.UNI))
+        assertEquals(1101, HanziCatalog.allEntries.size)
 
         HanziCatalog.allEntries.forEach { entry ->
             assertTrue("Empty character", entry.character.isNotBlank())
@@ -51,15 +51,15 @@ class StrokeRecognizerTest {
         assertEquals(150, HanziCatalog.wordCountForLevel(HskLevel.HSK2, HskStandard.HSK_2_0))
         assertEquals(300, HanziCatalog.wordCountForLevel(HskLevel.HSK3, HskStandard.HSK_2_0))
         assertEquals(600, HanziCatalog.wordCountForLevel(HskLevel.HSK4, HskStandard.HSK_2_0))
-        assertEquals(237, HanziCatalog.wordCountForLevel(HskLevel.UNI, HskStandard.HSK_2_0))
-        assertEquals(1437, HanziCatalog.allWordsFor(HskStandard.HSK_2_0).size)
+        assertEquals(56, HanziCatalog.wordCountForLevel(HskLevel.UNI, HskStandard.HSK_2_0))
+        assertEquals(1256, HanziCatalog.allWordsFor(HskStandard.HSK_2_0).size)
 
         assertEquals(174, HanziCatalog.countForLevel(HskLevel.HSK1, HskStandard.HSK_2_0))
         assertEquals(174, HanziCatalog.countForLevel(HskLevel.HSK2, HskStandard.HSK_2_0))
         assertEquals(270, HanziCatalog.countForLevel(HskLevel.HSK3, HskStandard.HSK_2_0))
         assertEquals(446, HanziCatalog.countForLevel(HskLevel.HSK4, HskStandard.HSK_2_0))
-        assertEquals(212, HanziCatalog.countForLevel(HskLevel.UNI, HskStandard.HSK_2_0))
-        assertEquals(1276, HanziCatalog.allEntriesFor(HskStandard.HSK_2_0).size)
+        assertEquals(4, HanziCatalog.countForLevel(HskLevel.UNI, HskStandard.HSK_2_0))
+        assertEquals(1068, HanziCatalog.allEntriesFor(HskStandard.HSK_2_0).size)
 
         HanziCatalog.allEntriesFor(HskStandard.HSK_2_0).forEach { entry ->
             assertTrue("Empty HSK 2.0 character", entry.character.isNotBlank())
@@ -81,10 +81,18 @@ class StrokeRecognizerTest {
             val uniWords = HanziCatalog.wordsForLevels(setOf(HskLevel.UNI), std)
             assertTrue("Missing 俄语 in $std UNI", uniWords.any { it.hanzi == "俄语" })
             assertTrue("Missing 德语 in $std UNI", uniWords.any { it.hanzi == "德语" })
+            assertFalse("Unexpected radical in $std UNI", uniWords.any { it.pos == "rad." })
             val uniChars = HanziCatalog.entriesForLevels(setOf(HskLevel.UNI), std).map { it.character }.toSet()
             assertTrue("Missing 王 in $std UNI", "王" in uniChars)
-            assertTrue("Missing 氵 in $std UNI", "氵" in uniChars)
+            assertTrue("Missing 俄 in $std UNI", "俄" in uniChars)
+            assertFalse("Unexpected key 氵 in $std UNI", "氵" in uniChars)
         }
+
+        // Verify continuous pinyin queries match spaced HSK 2.0 pinyin (e.g. 'cidi' -> 'cí diǎn')
+        val cidiWords20 = HanziCatalog.searchWords("cidi", setOf(HskLevel.HSK3), HskStandard.HSK_2_0)
+        assertTrue("Expected 词典 for 'cidi' in HSK 2.0", cidiWords20.any { it.hanzi == "词典" })
+        val cidiChars20 = HanziCatalog.search("cidian", setOf(HskLevel.HSK3), HskStandard.HSK_2_0)
+        assertTrue("Expected 词/典 example match for 'cidian' in HSK 2.0", cidiChars20.any { it.character == "词" })
     }
 
     @Test

@@ -36,7 +36,7 @@ enum class HskLevel(
     HSK2(2, "HSK 2", "Элементарный уровень"),
     HSK3(3, "HSK 3", "Пороговый уровень"),
     HSK4(4, "HSK 4", "Средний уровень"),
-    UNI(5, "ВУЗ", "Программа вуза (уроки и ключи)");
+    UNI(5, "ВУЗ", "Программа вуза (уроки 1–13)");
 
     companion object {
         fun fromNumber(number: Int): HskLevel = entries.firstOrNull { it.number == number } ?: HSK1

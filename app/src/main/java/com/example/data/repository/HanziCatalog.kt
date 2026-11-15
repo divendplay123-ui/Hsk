@@ -111,14 +111,15 @@ object HanziCatalog {
         if (trimmed.isEmpty()) return pool
 
         val normalizedQuery = normalizePinyin(trimmed)
+        val compactQuery = compactPinyin(normalizedQuery)
         return pool.filter { entry ->
             entry.character.contains(trimmed) ||
                 entry.meaningRu.contains(trimmed, ignoreCase = true) ||
-                normalizePinyin(entry.pinyin).contains(normalizedQuery) ||
+                pinyinMatches(entry.pinyin, normalizedQuery, compactQuery) ||
                 entry.examples.any {
                     it.hanzi.contains(trimmed) ||
                         it.meaningRu.contains(trimmed, ignoreCase = true) ||
-                        normalizePinyin(it.pinyin).contains(normalizedQuery)
+                        pinyinMatches(it.pinyin, normalizedQuery, compactQuery)
                 }
         }
     }
@@ -133,11 +134,12 @@ object HanziCatalog {
         if (trimmed.isEmpty()) return pool
 
         val normalizedQuery = normalizePinyin(trimmed)
+        val compactQuery = compactPinyin(normalizedQuery)
         return pool.filter { word ->
             word.hanzi.contains(trimmed) ||
                 word.meaningRu.contains(trimmed, ignoreCase = true) ||
                 word.meaningEn.contains(trimmed, ignoreCase = true) ||
-                normalizePinyin(word.pinyin).contains(normalizedQuery) ||
+                pinyinMatches(word.pinyin, normalizedQuery, compactQuery) ||
                 word.number.toString() == trimmed
         }
     }
@@ -250,6 +252,27 @@ object HanziCatalog {
         val file = candidates.firstOrNull { it.exists() }
             ?: error("Could not locate HSK resource: $resourcePath")
         return file.bufferedReader(StandardCharsets.UTF_8)
+    }
+
+    private fun pinyinMatches(
+        pinyin: String,
+        normalizedQuery: String,
+        compactQuery: String
+    ): Boolean {
+        val normalizedPinyin = normalizePinyin(pinyin)
+        if (normalizedPinyin.contains(normalizedQuery)) return true
+        if (compactQuery.isEmpty()) return false
+        val compact = compactPinyin(normalizedPinyin)
+        if (compact.contains(compactQuery)) return true
+        return compact.replace('v', 'u').contains(compactQuery.replace('v', 'u'))
+    }
+
+    private fun compactPinyin(normalized: String): String = buildString(normalized.length) {
+        for (ch in normalized) {
+            if (ch != ' ' && ch != '\'' && ch != '’' && ch != '-') {
+                append(ch)
+            }
+        }
     }
 
     private fun normalizePinyin(input: String): String {

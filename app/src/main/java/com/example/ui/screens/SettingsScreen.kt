@@ -315,7 +315,7 @@ fun SettingsScreen(
                     HskToggleRow(
                         level = HskLevel.UNI,
                         title = "Добавить программу вуза",
-                        subtitle = "Уроки 1–13 и 214 ключей, не вошедшие в HSK 1–4 (+$c5 иерогл. · +$w5 слов/ключей)",
+                        subtitle = "Лексика и иероглифы из уроков 1–13, не вошедшие в HSK 1–4 (+$c5 иерогл. · +$w5 слов)",
                         checked = settings.includeUni,
                         onCheckedChange = onToggleUni,
                         switchTestTag = "uni_switch"

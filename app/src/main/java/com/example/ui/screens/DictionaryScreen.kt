@@ -138,9 +138,9 @@ fun DictionaryScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFFEBE4D8)
                         )
-                        if (!settings.includeHsk2 || !settings.includeHsk3 || !settings.includeHsk4) {
+                        if (!settings.includeHsk2 || !settings.includeHsk3 || !settings.includeHsk4 || !settings.includeUni) {
                             Text(
-                                text = "Добавить HSK 2, 3, 4 →",
+                                text = "Добавить HSK 2–4 и ВУЗ →",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = Color(0xFFFFB5A7),
                                 fontWeight = FontWeight.SemiBold,
@@ -321,7 +321,7 @@ fun DictionaryScreen(
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            text = "Попробуйте другой запрос или включите уровни HSK 2–4 в настройках.",
+                            text = "Попробуйте другой запрос или включите уровни HSK 2–4 и ВУЗ в настройках.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

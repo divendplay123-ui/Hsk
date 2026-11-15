@@ -50,6 +50,7 @@ fun SettingsScreen(
     onToggleHsk2: (Boolean) -> Unit,
     onToggleHsk3: (Boolean) -> Unit,
     onToggleHsk4: (Boolean) -> Unit,
+    onToggleUni: (Boolean) -> Unit,
     onToggleGridGuide: (Boolean) -> Unit,
     onToggleStrictStrokeCount: (Boolean) -> Unit,
     modifier: Modifier = Modifier
@@ -62,11 +63,13 @@ fun SettingsScreen(
     val w2 = HanziCatalog.wordCountForLevel(HskLevel.HSK2, standard)
     val w3 = HanziCatalog.wordCountForLevel(HskLevel.HSK3, standard)
     val w4 = HanziCatalog.wordCountForLevel(HskLevel.HSK4, standard)
+    val w5 = HanziCatalog.wordCountForLevel(HskLevel.UNI, standard)
 
     val c1 = HanziCatalog.countForLevel(HskLevel.HSK1, standard)
     val c2 = HanziCatalog.countForLevel(HskLevel.HSK2, standard)
     val c3 = HanziCatalog.countForLevel(HskLevel.HSK3, standard)
     val c4 = HanziCatalog.countForLevel(HskLevel.HSK4, standard)
+    val c5 = HanziCatalog.countForLevel(HskLevel.UNI, standard)
 
     Column(
         modifier = modifier
@@ -305,6 +308,17 @@ fun SettingsScreen(
                         checked = settings.includeHsk4,
                         onCheckedChange = onToggleHsk4,
                         switchTestTag = "hsk4_switch"
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                    HskToggleRow(
+                        level = HskLevel.UNI,
+                        title = "Добавить программу вуза",
+                        subtitle = "Уроки 1–13 и 214 ключей, не вошедшие в HSK 1–4 (+$c5 иерогл. · +$w5 слов/ключей)",
+                        checked = settings.includeUni,
+                        onCheckedChange = onToggleUni,
+                        switchTestTag = "uni_switch"
                     )
                 }
             }

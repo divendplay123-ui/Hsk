@@ -71,5 +71,7 @@ class MainActivitySmokeTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("hsk2_switch").performScrollTo().performClick()
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag("uni_switch").performScrollTo().performClick()
+        composeRule.waitForIdle()
     }
 }

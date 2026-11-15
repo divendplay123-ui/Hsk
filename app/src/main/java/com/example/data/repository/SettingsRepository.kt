@@ -21,6 +21,7 @@ class SettingsRepository(private val context: Context) {
         val INCLUDE_HSK2 = booleanPreferencesKey("include_hsk2")
         val INCLUDE_HSK3 = booleanPreferencesKey("include_hsk3")
         val INCLUDE_HSK4 = booleanPreferencesKey("include_hsk4")
+        val INCLUDE_UNI = booleanPreferencesKey("include_uni")
         val SHOW_GRID_GUIDE = booleanPreferencesKey("show_grid_guide")
         val STRICT_STROKE_COUNT = booleanPreferencesKey("strict_stroke_count")
         val RECENT_CHARACTERS = stringPreferencesKey("recent_characters")
@@ -59,6 +60,7 @@ class SettingsRepository(private val context: Context) {
             includeHsk2 = prefs[Keys.INCLUDE_HSK2] ?: false,
             includeHsk3 = prefs[Keys.INCLUDE_HSK3] ?: false,
             includeHsk4 = prefs[Keys.INCLUDE_HSK4] ?: false,
+            includeUni = prefs[Keys.INCLUDE_UNI] ?: false,
             showGridGuide = prefs[Keys.SHOW_GRID_GUIDE] ?: true,
             strictStrokeCount = prefs[Keys.STRICT_STROKE_COUNT] ?: false,
             recentCharacters = recentList,
@@ -82,6 +84,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setIncludeHsk4(enabled: Boolean) {
         context.dataStore.edit { it[Keys.INCLUDE_HSK4] = enabled }
+    }
+
+    suspend fun setIncludeUni(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.INCLUDE_UNI] = enabled }
     }
 
     suspend fun setShowGridGuide(enabled: Boolean) {

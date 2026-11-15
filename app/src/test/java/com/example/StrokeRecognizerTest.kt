@@ -18,19 +18,21 @@ class StrokeRecognizerTest {
 
     @Test
     fun catalogEntriesAreWellFormed() {
-        // Official HSK 3.0 word counts from the 4 PDFs
+        // Official HSK 3.0 word counts from the 4 PDFs + UNI block
         assertEquals(300, HanziCatalog.wordCountForLevel(HskLevel.HSK1))
         assertEquals(200, HanziCatalog.wordCountForLevel(HskLevel.HSK2))
         assertEquals(500, HanziCatalog.wordCountForLevel(HskLevel.HSK3))
         assertEquals(1000, HanziCatalog.wordCountForLevel(HskLevel.HSK4))
-        assertEquals(2000, HanziCatalog.allWords.size)
+        assertEquals(229, HanziCatalog.wordCountForLevel(HskLevel.UNI))
+        assertEquals(2229, HanziCatalog.allWords.size)
 
-        // Official HSK 3.0 unique character counts derived from the 2,000 words
+        // Official HSK 3.0 unique character counts + UNI block
         assertEquals(248, HanziCatalog.countForLevel(HskLevel.HSK1))
         assertEquals(123, HanziCatalog.countForLevel(HskLevel.HSK2))
         assertEquals(284, HanziCatalog.countForLevel(HskLevel.HSK3))
         assertEquals(441, HanziCatalog.countForLevel(HskLevel.HSK4))
-        assertEquals(1096, HanziCatalog.allEntries.size)
+        assertEquals(207, HanziCatalog.countForLevel(HskLevel.UNI))
+        assertEquals(1303, HanziCatalog.allEntries.size)
 
         HanziCatalog.allEntries.forEach { entry ->
             assertTrue("Empty character", entry.character.isNotBlank())
@@ -49,13 +51,15 @@ class StrokeRecognizerTest {
         assertEquals(150, HanziCatalog.wordCountForLevel(HskLevel.HSK2, HskStandard.HSK_2_0))
         assertEquals(300, HanziCatalog.wordCountForLevel(HskLevel.HSK3, HskStandard.HSK_2_0))
         assertEquals(600, HanziCatalog.wordCountForLevel(HskLevel.HSK4, HskStandard.HSK_2_0))
-        assertEquals(1200, HanziCatalog.allWordsFor(HskStandard.HSK_2_0).size)
+        assertEquals(237, HanziCatalog.wordCountForLevel(HskLevel.UNI, HskStandard.HSK_2_0))
+        assertEquals(1437, HanziCatalog.allWordsFor(HskStandard.HSK_2_0).size)
 
         assertEquals(174, HanziCatalog.countForLevel(HskLevel.HSK1, HskStandard.HSK_2_0))
         assertEquals(174, HanziCatalog.countForLevel(HskLevel.HSK2, HskStandard.HSK_2_0))
         assertEquals(270, HanziCatalog.countForLevel(HskLevel.HSK3, HskStandard.HSK_2_0))
         assertEquals(446, HanziCatalog.countForLevel(HskLevel.HSK4, HskStandard.HSK_2_0))
-        assertEquals(1064, HanziCatalog.allEntriesFor(HskStandard.HSK_2_0).size)
+        assertEquals(212, HanziCatalog.countForLevel(HskLevel.UNI, HskStandard.HSK_2_0))
+        assertEquals(1276, HanziCatalog.allEntriesFor(HskStandard.HSK_2_0).size)
 
         HanziCatalog.allEntriesFor(HskStandard.HSK_2_0).forEach { entry ->
             assertTrue("Empty HSK 2.0 character", entry.character.isNotBlank())
@@ -67,11 +71,20 @@ class StrokeRecognizerTest {
             )
         }
 
-        // Verify examples preserve semicolon meanings
+        // Verify examples preserve semicolon meanings and UNI entries exist in both standards
         val aiHsk30 = HanziCatalog.findByCharacter("爱", HskStandard.HSK_3_0)
         assertTrue(aiHsk30 != null && aiHsk30.examples.isNotEmpty())
         val yiHsk20 = HanziCatalog.findByCharacter("一", HskStandard.HSK_2_0)
         assertTrue(yiHsk20 != null && yiHsk20.examples.isNotEmpty())
+
+        listOf(HskStandard.HSK_3_0, HskStandard.HSK_2_0).forEach { std ->
+            val uniWords = HanziCatalog.wordsForLevels(setOf(HskLevel.UNI), std)
+            assertTrue("Missing 俄语 in $std UNI", uniWords.any { it.hanzi == "俄语" })
+            assertTrue("Missing 德语 in $std UNI", uniWords.any { it.hanzi == "德语" })
+            val uniChars = HanziCatalog.entriesForLevels(setOf(HskLevel.UNI), std).map { it.character }.toSet()
+            assertTrue("Missing 王 in $std UNI", "王" in uniChars)
+            assertTrue("Missing 氵 in $std UNI", "氵" in uniChars)
+        }
     }
 
     @Test

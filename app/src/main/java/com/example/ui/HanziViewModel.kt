@@ -311,6 +311,15 @@ class HanziViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setIncludeUni(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setIncludeUni(enabled)
+            if (!enabled && _dictionaryLevelFilter.value == HskLevel.UNI) {
+                _dictionaryLevelFilter.value = null
+            }
+        }
+    }
+
     fun setShowGridGuide(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setShowGridGuide(enabled) }
     }

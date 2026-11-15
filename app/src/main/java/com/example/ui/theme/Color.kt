@@ -24,6 +24,9 @@ val AmberSoft = Color(0xFFF9EEDB)
 val IndigoInk = Color(0xFF39527A)
 val IndigoSoft = Color(0xFFE7EDF7)
 
+val PlumInk = Color(0xFF6B3E5E)
+val PlumSoft = Color(0xFFF3E6EE)
+
 // Dark Theme — Night Ink Studio
 val NightInkBg = Color(0xFF141210)
 val NightInkSurface = Color(0xFF1E1B18)

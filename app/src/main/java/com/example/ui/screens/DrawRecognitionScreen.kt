@@ -329,7 +329,7 @@ private fun CandidatesSection(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             Text(
-                text = "Точных совпадений не найдено — попробуйте отключить «Строгий счёт черт» или расширьте уровни HSK в Настройках.",
+                text = "Точных совпадений не найдено — попробуйте отключить «Строгий счёт черт» или расширьте уровни HSK и ВУЗ в Настройках.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(14.dp)

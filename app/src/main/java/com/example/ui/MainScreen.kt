@@ -226,6 +226,7 @@ fun MainScreen(
                             onToggleHsk2 = viewModel::setIncludeHsk2,
                             onToggleHsk3 = viewModel::setIncludeHsk3,
                             onToggleHsk4 = viewModel::setIncludeHsk4,
+                            onToggleUni = viewModel::setIncludeUni,
                             onToggleGridGuide = viewModel::setShowGridGuide,
                             onToggleStrictStrokeCount = viewModel::setStrictStrokeCount
                         )

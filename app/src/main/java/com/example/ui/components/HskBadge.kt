@@ -22,6 +22,8 @@ import com.example.ui.theme.IndigoInk
 import com.example.ui.theme.IndigoSoft
 import com.example.ui.theme.JadeCeladon
 import com.example.ui.theme.JadeSoft
+import com.example.ui.theme.PlumInk
+import com.example.ui.theme.PlumSoft
 import com.example.ui.theme.VermilionSeal
 import com.example.ui.theme.VermilionSoft
 
@@ -35,6 +37,7 @@ fun HskLevelBadge(
         HskLevel.HSK2 -> JadeSoft to JadeCeladon
         HskLevel.HSK3 -> AmberSoft to AmberGold
         HskLevel.HSK4 -> IndigoSoft to IndigoInk
+        HskLevel.UNI -> PlumSoft to PlumInk
     }
 
     Box(

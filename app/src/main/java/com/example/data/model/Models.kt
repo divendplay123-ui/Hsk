@@ -10,13 +10,13 @@ enum class HskStandard(
         key = "HSK30",
         label = "HSK 3.0 (новый)",
         shortLabel = "HSK 3.0",
-        descriptionRu = "2 000 слов · 1 096 иероглифов (уровни 1–4)"
+        descriptionRu = "2 000 слов · 1 096 иерогл. (1–4) + ВУЗ"
     ),
     HSK_2_0(
         key = "HSK20",
         label = "HSK 2.0 (старый)",
         shortLabel = "HSK 2.0",
-        descriptionRu = "1 200 слов · 1 064 иероглифа (уровни 1–4)"
+        descriptionRu = "1 200 слов · 1 064 иерогл. (1–4) + ВУЗ"
     );
 
     companion object {
@@ -33,7 +33,8 @@ enum class HskLevel(
     HSK1(1, "HSK 1", "Базовый уровень (всегда активен)"),
     HSK2(2, "HSK 2", "Элементарный уровень"),
     HSK3(3, "HSK 3", "Пороговый уровень"),
-    HSK4(4, "HSK 4", "Средний уровень");
+    HSK4(4, "HSK 4", "Средний уровень"),
+    UNI(5, "ВУЗ", "Программа вуза (уроки и ключи)");
 
     companion object {
         fun fromNumber(number: Int): HskLevel = entries.firstOrNull { it.number == number } ?: HSK1
@@ -98,6 +99,7 @@ data class AppSettings(
     val includeHsk2: Boolean = false,
     val includeHsk3: Boolean = false,
     val includeHsk4: Boolean = false,
+    val includeUni: Boolean = false,
     val showGridGuide: Boolean = true,
     val strictStrokeCount: Boolean = false,
     val recentCharacters: List<String> = emptyList(),
@@ -111,6 +113,7 @@ data class AppSettings(
             if (includeHsk2) add(HskLevel.HSK2)
             if (includeHsk3) add(HskLevel.HSK3)
             if (includeHsk4) add(HskLevel.HSK4)
+            if (includeUni) add(HskLevel.UNI)
         }
 
     val activeMasteredWords: Set<Int>

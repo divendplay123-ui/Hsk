@@ -75,9 +75,13 @@ fun MainScreen(
 
     val studyMode by viewModel.studyMode.collectAsStateWithLifecycle()
     val onlyUnmastered by viewModel.onlyUnmastered.collectAsStateWithLifecycle()
+    val flashcardDeckMode by viewModel.flashcardDeckMode.collectAsStateWithLifecycle()
+    val flashcardDirection by viewModel.flashcardDirection.collectAsStateWithLifecycle()
     val studyDeck by viewModel.studyDeck.collectAsStateWithLifecycle()
     val flashcardIndex by viewModel.flashcardIndex.collectAsStateWithLifecycle()
     val isFlashcardFlipped by viewModel.isFlashcardFlipped.collectAsStateWithLifecycle()
+    val recallState by viewModel.recallState.collectAsStateWithLifecycle()
+    val matchState by viewModel.matchState.collectAsStateWithLifecycle()
     val quizState by viewModel.quizState.collectAsStateWithLifecycle()
     val writePracticeState by viewModel.writePracticeState.collectAsStateWithLifecycle()
 
@@ -173,19 +177,36 @@ fun MainScreen(
                             settings = settings,
                             studyMode = studyMode,
                             onlyUnmastered = onlyUnmastered,
+                            flashcardDeckMode = flashcardDeckMode,
+                            flashcardDirection = flashcardDirection,
                             studyDeck = studyDeck,
                             flashcardIndex = flashcardIndex,
                             isFlashcardFlipped = isFlashcardFlipped,
+                            recallState = recallState,
+                            matchState = matchState,
                             quizState = quizState,
                             writePracticeState = writePracticeState,
                             onSelectHskStandard = viewModel::setHskStandard,
                             onSelectStudyMode = viewModel::setStudyMode,
                             onToggleOnlyUnmastered = viewModel::toggleOnlyUnmastered,
+                            onSelectDeckMode = viewModel::setFlashcardDeckMode,
+                            onToggleDirection = viewModel::setFlashcardDirection,
+                            onRefreshSrsSession = viewModel::refreshSrsSession,
                             onFlipFlashcard = viewModel::flipFlashcard,
                             onNextFlashcard = viewModel::nextFlashcard,
                             onPrevFlashcard = viewModel::prevFlashcard,
                             onShuffleFlashcards = viewModel::shuffleFlashcards,
-                            onMarkFlashcardResult = viewModel::markFlashcardResult,
+                            onRateFlashcardSrs = viewModel::rateFlashcardSrs,
+                            onAnswerToneRecall = viewModel::answerToneRecall,
+                            onTapAssembleTile = viewModel::tapAssembleTile,
+                            onBackspaceAssemble = viewModel::backspaceAssemble,
+                            onClearAssemble = viewModel::clearAssemble,
+                            onSubmitAssembleRecall = viewModel::submitAssembleRecall,
+                            onNextRecallQuestion = viewModel::nextRecallQuestion,
+                            onStartNewRecallRound = viewModel::startNewRecallRound,
+                            onSelectMatchLeft = viewModel::selectMatchLeft,
+                            onSelectMatchRight = viewModel::selectMatchRight,
+                            onStartNewMatchRound = viewModel::startNewMatchRound,
                             onAnswerQuiz = viewModel::answerQuiz,
                             onNextQuizQuestion = viewModel::nextQuizQuestion,
                             onStartNewQuizRound = viewModel::startNewQuizRound,

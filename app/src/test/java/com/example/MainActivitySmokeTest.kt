@@ -37,15 +37,23 @@ class MainActivitySmokeTest {
         composeRule.onNodeWithTag("detail_close_button").performClick()
         composeRule.waitForIdle()
 
-        // Navigate to Study tab ("Учить") and exercise Flashcards, Quiz, and Write
+        // Navigate to Study tab ("Учить") and exercise SRS Flashcards, Recall, Match, Quiz, and Write
         composeRule.onNodeWithTag("nav_study").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("flashcard_surface").performClick()
+        composeRule.onNodeWithTag("flashcard_direction_chip").performScrollTo().performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("flashcard_know_button").performClick()
+        composeRule.onNodeWithTag("flashcard_surface").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("flashcard_know_button").performScrollTo().performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("study_mode_quiz").performClick()
+        composeRule.onNodeWithTag("study_mode_recall").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("study_mode_match").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("match_left_0").performScrollTo().assertExists()
+
+        composeRule.onNodeWithTag("study_mode_quiz").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("quiz_option_0").performScrollTo().performClick()
         composeRule.waitForIdle()

@@ -1,5 +1,7 @@
 package com.example.data.model
 
+import com.example.domain.SrsCardState
+
 enum class HskStandard(
     val key: String,
     val label: String,
@@ -105,7 +107,13 @@ data class AppSettings(
     val recentCharacters: List<String> = emptyList(),
     val masteredCharacters: Set<String> = emptySet(),
     val masteredWords: Set<Int> = emptySet(),
-    val masteredWordsHsk20: Set<Int> = emptySet()
+    val masteredWordsHsk20: Set<Int> = emptySet(),
+    val srsRecordsHsk30: Map<Int, SrsCardState> = emptyMap(),
+    val srsRecordsHsk20: Map<Int, SrsCardState> = emptyMap(),
+    val dailyReviewsCount: Int = 0,
+    val dailyReviewsEpochDay: Long = 0L,
+    val studyStreakDays: Int = 0,
+    val lastStudyEpochDay: Long = 0L
 ) {
     val enabledLevels: Set<HskLevel>
         get() = buildSet {
@@ -118,4 +126,7 @@ data class AppSettings(
 
     val activeMasteredWords: Set<Int>
         get() = if (hskStandard == HskStandard.HSK_2_0) masteredWordsHsk20 else masteredWords
+
+    val activeSrsRecords: Map<Int, SrsCardState>
+        get() = if (hskStandard == HskStandard.HSK_2_0) srsRecordsHsk20 else srsRecordsHsk30
 }

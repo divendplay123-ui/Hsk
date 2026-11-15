@@ -5,10 +5,14 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.data.model.AppSettings
 import com.example.data.model.HskStandard
+import com.example.domain.SrsEngine
+import com.example.domain.SrsRating
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -28,6 +32,12 @@ class SettingsRepository(private val context: Context) {
         val MASTERED_CHARACTERS = stringPreferencesKey("mastered_characters")
         val MASTERED_WORDS = stringPreferencesKey("mastered_words")
         val MASTERED_WORDS_HSK20 = stringPreferencesKey("mastered_words_hsk20")
+        val SRS_RECORDS_HSK30 = stringPreferencesKey("srs_records_hsk30")
+        val SRS_RECORDS_HSK20 = stringPreferencesKey("srs_records_hsk20")
+        val DAILY_REVIEWS_COUNT = intPreferencesKey("daily_reviews_count")
+        val DAILY_REVIEWS_EPOCH_DAY = longPreferencesKey("daily_reviews_epoch_day")
+        val STUDY_STREAK_DAYS = intPreferencesKey("study_streak_days")
+        val LAST_STUDY_EPOCH_DAY = longPreferencesKey("last_study_epoch_day")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -66,7 +76,13 @@ class SettingsRepository(private val context: Context) {
             recentCharacters = recentList,
             masteredCharacters = masteredSet,
             masteredWords = masteredWordsSet,
-            masteredWordsHsk20 = masteredWordsHsk20Set
+            masteredWordsHsk20 = masteredWordsHsk20Set,
+            srsRecordsHsk30 = SrsEngine.decodeRecords(prefs[Keys.SRS_RECORDS_HSK30].orEmpty()),
+            srsRecordsHsk20 = SrsEngine.decodeRecords(prefs[Keys.SRS_RECORDS_HSK20].orEmpty()),
+            dailyReviewsCount = prefs[Keys.DAILY_REVIEWS_COUNT] ?: 0,
+            dailyReviewsEpochDay = prefs[Keys.DAILY_REVIEWS_EPOCH_DAY] ?: 0L,
+            studyStreakDays = prefs[Keys.STUDY_STREAK_DAYS] ?: 0,
+            lastStudyEpochDay = prefs[Keys.LAST_STUDY_EPOCH_DAY] ?: 0L
         )
     }
 
@@ -140,6 +156,62 @@ class SettingsRepository(private val context: Context) {
             val key = wordNumber.toString()
             if (mastered) current.add(key) else current.remove(key)
             prefs[prefKey] = current.joinToString("|")
+        }
+    }
+
+    suspend fun recordSrsReview(
+        wordNumber: Int,
+        rating: SrsRating,
+        standard: HskStandard,
+        nowMillis: Long = System.currentTimeMillis()
+    ) {
+        val srsKey = if (standard == HskStandard.HSK_2_0) {
+            Keys.SRS_RECORDS_HSK20
+        } else {
+            Keys.SRS_RECORDS_HSK30
+        }
+        val masteredKey = if (standard == HskStandard.HSK_2_0) {
+            Keys.MASTERED_WORDS_HSK20
+        } else {
+            Keys.MASTERED_WORDS
+        }
+        val todayEpochDay = nowMillis / 86_400_000L
+
+        context.dataStore.edit { prefs ->
+            val currentMap = SrsEngine.decodeRecords(prefs[srsKey].orEmpty()).toMutableMap()
+            val updatedState = SrsEngine.review(currentMap[wordNumber], rating, nowMillis)
+            currentMap[wordNumber] = updatedState
+            prefs[srsKey] = SrsEngine.encodeRecords(currentMap)
+
+            // Sync masteredWords flag: Good/Easy marks word known; Again removes it
+            val masteredSet = prefs[masteredKey]
+                .orEmpty()
+                .split("|")
+                .filter { it.isNotBlank() }
+                .toMutableSet()
+            val numKey = wordNumber.toString()
+            when (rating) {
+                SrsRating.AGAIN -> masteredSet.remove(numKey)
+                SrsRating.GOOD, SrsRating.EASY -> masteredSet.add(numKey)
+                SrsRating.HARD -> Unit
+            }
+            prefs[masteredKey] = masteredSet.joinToString("|")
+
+            // Update daily counter & streak
+            val prevDailyDay = prefs[Keys.DAILY_REVIEWS_EPOCH_DAY] ?: 0L
+            val prevDailyCount = prefs[Keys.DAILY_REVIEWS_COUNT] ?: 0
+            prefs[Keys.DAILY_REVIEWS_EPOCH_DAY] = todayEpochDay
+            prefs[Keys.DAILY_REVIEWS_COUNT] = if (prevDailyDay == todayEpochDay) prevDailyCount + 1 else 1
+
+            val lastStreakDay = prefs[Keys.LAST_STUDY_EPOCH_DAY] ?: 0L
+            val currentStreak = prefs[Keys.STUDY_STREAK_DAYS] ?: 0
+            val nextStreak = when {
+                lastStreakDay == todayEpochDay -> currentStreak.coerceAtLeast(1)
+                lastStreakDay == todayEpochDay - 1L -> currentStreak + 1
+                else -> 1
+            }
+            prefs[Keys.LAST_STUDY_EPOCH_DAY] = todayEpochDay
+            prefs[Keys.STUDY_STREAK_DAYS] = nextStreak
         }
     }
 }

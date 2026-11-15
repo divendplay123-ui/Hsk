@@ -3,11 +3,25 @@ package com.example.ui
 import com.example.data.model.HanziEntry
 import com.example.data.model.HskWordEntry
 import com.example.domain.DrawnStroke
+import com.example.domain.RecallChallenge
 
 enum class StudyMode(val label: String) {
-    FLASHCARDS("Карточки"),
+    FLASHCARDS("Интервалы"),
+    RECALL("Тоны и сборка"),
+    MATCH("Пары"),
     QUIZ("Тест"),
     WRITE("Пропись")
+}
+
+enum class FlashcardDeckMode(val label: String) {
+    SRS_QUEUE("Очередь SM-2"),
+    ALL_WORDS("Все слова"),
+    HARD_ONLY("Сложные")
+}
+
+enum class FlashcardDirection(val label: String) {
+    HANZI_TO_RU("汉字 → Перевод"),
+    RU_TO_HANZI("Перевод → 汉字")
 }
 
 enum class QuizQuestionType {
@@ -31,6 +45,35 @@ data class QuizUiState(
 ) {
     val currentQuestion: QuizQuestion?
         get() = questions.getOrNull(currentIndex)
+}
+
+data class ActiveRecallUiState(
+    val challenges: List<RecallChallenge> = emptyList(),
+    val currentIndex: Int = 0,
+    val selectedToneOption: String? = null,
+    val assembledChars: List<String> = emptyList(),
+    val isAssembleSubmitted: Boolean = false,
+    val isCorrect: Boolean? = null,
+    val correctCount: Int = 0,
+    val streak: Int = 0,
+    val isRoundFinished: Boolean = false
+) {
+    val currentChallenge: RecallChallenge?
+        get() = challenges.getOrNull(currentIndex)
+}
+
+data class MatchRoundUiState(
+    val pairs: List<HskWordEntry> = emptyList(),
+    val rightColumnWords: List<HskWordEntry> = emptyList(),
+    val matchedNumbers: Set<Int> = emptySet(),
+    val selectedLeftNumber: Int? = null,
+    val selectedRightNumber: Int? = null,
+    val wrongPairNumbers: Pair<Int, Int>? = null,
+    val mistakesCount: Int = 0,
+    val roundNumber: Int = 1
+) {
+    val isRoundFinished: Boolean
+        get() = pairs.isNotEmpty() && matchedNumbers.size == pairs.size
 }
 
 data class WriteCheckResult(
